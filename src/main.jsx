@@ -300,7 +300,7 @@ function Bookings() {
 }
 
 /* -------------------------------------------------------- Rider review */
-const KIND = { id: 'ID', certificate: 'Certificate', experience: 'Experience', other: 'Other' };
+const KIND = { id: 'ID', licence: 'Driving licence', certificate: 'Certificate', experience: 'Experience', other: 'Other' };
 
 function DocLink({ doc }) {
   const [url, setUrl] = useState('');
