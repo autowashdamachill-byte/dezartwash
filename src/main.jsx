@@ -300,7 +300,8 @@ function Bookings() {
 }
 
 /* -------------------------------------------------------- Rider review */
-const KIND = { id: 'ID', licence: 'Driving licence', certificate: 'Certificate', experience: 'Experience', other: 'Other' };
+const KIND = { id: 'Iqama / ID', licence: 'Driving licence', certificate: 'Certificate', experience: 'Experience letter', other: 'Other document' };
+const AI = { iqama_or_id: 'Iqama / ID', driving_licence: 'Driving licence', certificate: 'Certificate', experience_letter: 'Experience letter', other_document: 'Other document', chat_screenshot: 'Chat screenshot', not_a_document: 'Not a document' };
 
 function DocLink({ doc }) {
   const [url, setUrl] = useState('');
@@ -344,6 +345,7 @@ function RiderReview({ rider, onClose, reload }) {
               <div>
                 <b>{KIND[d.kind]}</b> <small>{d.title}</small>
                 <div className={`badge ${d.status}`}>{d.status}</div>
+                {d.ai_type && <div><small>AI sees: <b>{AI[d.ai_type] || d.ai_type}</b>{d.ai_note ? ` - ${d.ai_note}` : ''}</small></div>}
                 <div className="actions">
                   <button className="link" onClick={() => docStatus(d.id, 'approved')}>Approve</button>
                   <button className="link danger" onClick={() => docStatus(d.id, 'rejected')}>Reject</button>
