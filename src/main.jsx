@@ -13,7 +13,7 @@ const { useState, useEffect, useCallback, useRef } = React;
 const sar = (n) => `SAR ${Number(n).toLocaleString('en-US')}`;
 const STATUSES = ['pending', 'assigned', 'confirmed', 'on_the_way', 'arrived', 'in_progress', 'completed', 'cancelled'];
 // What each status means for the admin.
-const STEP_LABEL = { pending: 'Waiting for a rider', assigned: 'Sent to rider, awaiting accept', confirmed: 'Accepted by rider', on_the_way: 'Rider on the way', arrived: 'Rider arrived', in_progress: 'Service in progress', completed: 'Completed', cancelled: 'Cancelled' };
+const STEP_LABEL = { pending: 'Waiting for a rider', assigned: 'Request sent to rider', confirmed: 'Confirmed by rider', on_the_way: 'Rider on the way', arrived: 'Rider arrived', in_progress: 'Service in progress', completed: 'Completed', cancelled: 'Cancelled' };
 const STEPS = ['assigned', 'confirmed', 'on_the_way', 'arrived', 'in_progress', 'completed'];
 
 function Progress({ status }) {
@@ -28,7 +28,7 @@ function Progress({ status }) {
     </div>
   );
 }
-const niceStatus = (s) => s.replace(/_/g, ' ');
+const niceStatus = (s) => (s === 'assigned' ? 'request sent' : s.replace(/_/g, ' '));
 
 /* ------------------------------------------------------------- Login */
 function Login() {
@@ -323,9 +323,17 @@ function Chats({ idx }) {
 function BookingsTable({ rows, reload }) {
   const riders = useTable('riders', { col: 'name' }).rows.filter((r) => r.approved);
   const [chat, setChat] = useState(null);
-  async function assign(id, rider) {
-    const { error } = await sb.rpc('assign_rider', { p_booking: id, p_rider: rider || null });
+  const [pick, setPick] = useState({});
+  const [sending, setSending] = useState('');
+  // Choosing a rider only selects them; the request goes out with the button.
+  async function send(id) {
+    const rider = pick[id];
+    if (!rider) return;
+    setSending(id);
+    const { error } = await sb.rpc('assign_rider', { p_booking: id, p_rider: rider });
+    setSending('');
     if (error) alert(error.message);
+    else setPick((p) => { const n = { ...p }; delete n[id]; return n; });
     reload();
   }
   async function setStatus(id, status) { await sb.from('bookings').update({ status }).eq('id', id); reload(); }
@@ -345,10 +353,13 @@ function BookingsTable({ rows, reload }) {
                 <td>{r.vehicle}<br /><small>{r.address}</small></td>
                 <td>{sar(r.total)}</td>
                 <td>
-                  <select value={r.rider_id || ''} disabled={['on_the_way', 'arrived', 'in_progress', 'completed', 'cancelled'].includes(r.status)} onChange={(e) => assign(r.id, e.target.value)}>
-                    <option value="">Unassigned</option>
+                  <select value={pick[r.id] ?? r.rider_id ?? ''} disabled={['confirmed', 'on_the_way', 'arrived', 'in_progress', 'completed', 'cancelled'].includes(r.status)} onChange={(e) => setPick((p) => ({ ...p, [r.id]: e.target.value }))}>
+                    <option value="">Select a rider</option>
                     {riders.map((x) => <option key={x.id} value={x.id}>{x.skills?.includes(r.service_id) ? '★ ' : ''}{x.name}</option>)}
                   </select>
+                  {['pending', 'assigned'].includes(r.status) && pick[r.id] && pick[r.id] !== r.rider_id && (
+                    <button className="primary send" disabled={sending === r.id} onClick={() => send(r.id)}>{sending === r.id ? 'Sending…' : 'Send to rider'}</button>
+                  )}
                 </td>
                 <td><Progress status={r.status} /></td>
                 <td className="actions">

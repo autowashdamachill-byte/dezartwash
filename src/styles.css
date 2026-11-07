@@ -70,3 +70,5 @@ html[dir=rtl] .count{margin-left:0;margin-right:8px}
 .convo.new{border-color:#1e6bff;background:#eef4ff}
 .convo .preview{margin-top:3px;max-width:520px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .convo .meta{display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0}
+
+button.send{display:block;margin-top:6px;padding:7px 14px;font-size:13px;border-radius:999px}
