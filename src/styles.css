@@ -57,3 +57,9 @@ label { display:flex; flex-direction:column; gap:4px; font-size:13px; color:var(
 
 .steps b { display:block; font-size:13px; } .stat-completed { color:#1b873f; } .stat-assigned, .stat-pending { color:#b26a00; }
 .dots { display:flex; gap:4px; margin-top:6px; } .dots i { width:18px; height:5px; border-radius:3px; background:#d5e2f7; } .dots i.on { background:linear-gradient(90deg,#3b8bff,#1456d6); }
+
+#lang-toggle{position:fixed;bottom:14px;inset-inline-end:14px;z-index:50;border:0;border-radius:999px;padding:9px 16px;font-weight:700;background:#0b2a6b;color:#fff;cursor:pointer;box-shadow:0 6px 18px rgba(11,42,107,.3)}
+html[dir=rtl] body{text-align:right}
+html[dir=rtl] .donut i{margin-right:0;margin-left:8px}
+html[dir=rtl] .donut b{margin-left:0;margin-right:6px}
+html[dir=rtl] .count{margin-left:0;margin-right:8px}

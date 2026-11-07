@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { createClient } from '@supabase/supabase-js';
 import './styles.css';
 import { enablePush } from './push.js';
+import { startI18n } from './i18n.js';
 
 const sb = createClient(
   import.meta.env.VITE_SUPABASE_URL,
@@ -677,3 +678,4 @@ function App() {
 }
 
 createRoot(document.getElementById('root')).render(<App />);
+startI18n();
