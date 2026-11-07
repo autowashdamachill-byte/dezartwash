@@ -63,3 +63,10 @@ html[dir=rtl] body{text-align:right}
 html[dir=rtl] .donut i{margin-right:0;margin-left:8px}
 html[dir=rtl] .donut b{margin-left:0;margin-right:6px}
 html[dir=rtl] .count{margin-left:0;margin-right:8px}
+
+.convos{display:flex;flex-direction:column;gap:8px}
+.convo{display:flex;justify-content:space-between;align-items:center;gap:12px;text-align:start;width:100%;background:#fff;border:1px solid #e1e8f5;border-radius:14px;padding:12px 14px;cursor:pointer;font:inherit;color:inherit}
+.convo:hover{background:#f4f8ff}
+.convo.new{border-color:#1e6bff;background:#eef4ff}
+.convo .preview{margin-top:3px;max-width:520px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.convo .meta{display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0}

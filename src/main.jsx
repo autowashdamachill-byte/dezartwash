@@ -256,6 +256,69 @@ function Chat({ booking, onClose }) {
   );
 }
 
+/* ------------------------------------------------------- Chats (all) */
+const seenKey = (id) => `admin_seen_${id}`;
+const getSeen = (id) => { try { return Number(localStorage.getItem(seenKey(id))) || 0; } catch { return 0; } };
+const markSeen = (id) => { try { localStorage.setItem(seenKey(id), String(Date.now())); } catch { /* ignore */ } };
+
+function useChatIndex(enabled) {
+  const [convos, setConvos] = useState([]);
+  const load = useCallback(async () => {
+    const { data: ms } = await sb.from('messages').select('*').order('created_at', { ascending: false }).limit(500);
+    const list = ms || [];
+    const ids = [...new Set(list.map((m) => m.booking_id))];
+    if (!ids.length) { setConvos([]); return; }
+    const { data: bs } = await sb.from('bookings').select('id,service_name,customer_name,status').in('id', ids);
+    const by = Object.fromEntries((bs || []).map((b) => [b.id, b]));
+    setConvos(ids.map((id) => {
+      const mine = list.filter((m) => m.booking_id === id);
+      const seen = getSeen(id);
+      return {
+        id,
+        booking: by[id] || { id, service_name: 'Booking' },
+        last: mine[0],
+        unread: mine.filter((m) => m.sender_role !== 'admin' && new Date(m.created_at).getTime() > seen).length,
+      };
+    }));
+  }, []);
+  useEffect(() => {
+    if (!enabled) return undefined;
+    load();
+    const t = setInterval(load, 10000);
+    const ch = sb.channel('admin-chat-index').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, load).subscribe();
+    return () => { clearInterval(t); sb.removeChannel(ch); };
+  }, [enabled, load]);
+  return { convos, unread: convos.reduce((a, c) => a + c.unread, 0), reload: load };
+}
+
+function Chats({ idx }) {
+  const [open, setOpen] = useState(null);
+  const { convos } = idx;
+  function openChat(c) { markSeen(c.id); idx.reload(); setOpen(c.booking); }
+  function close() { if (open) markSeen(open.id); setOpen(null); idx.reload(); }
+  return (
+    <div className="card">
+      {!convos.length && <p className="muted">No conversations yet. Messages between customers and riders appear here.</p>}
+      <div className="convos">
+        {convos.map((c) => (
+          <button key={c.id} className={`convo ${c.unread ? 'new' : ''}`} onClick={() => openChat(c)}>
+            <div className="who">
+              <b>{c.booking.customer_name || 'Customer'}</b>
+              <span className="muted"> · {c.booking.service_name}</span>
+              <div className="preview"><small>{c.last?.sender_role}:</small> {c.last?.body}</div>
+            </div>
+            <div className="meta">
+              <small className="muted">{c.last ? new Date(c.last.created_at).toLocaleString() : ''}</small>
+              {c.unread > 0 && <span className="count">{c.unread}</span>}
+            </div>
+          </button>
+        ))}
+      </div>
+      {open && <Chat booking={open} onClose={close} />}
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------ Bookings */
 function BookingsTable({ rows, reload }) {
   const riders = useTable('riders', { col: 'name' }).rows.filter((r) => r.approved);
@@ -597,7 +660,7 @@ function Customers() {
   );
 }
 
-const TABS = { Dashboard, Bookings, 'Rider approvals': Approvals, Riders, Services, 'Monthly plans': Plans, Coupons, Customers };
+const TABS = { Dashboard, Bookings, Chats, 'Rider approvals': Approvals, Riders, Services, 'Monthly plans': Plans, Coupons, Customers };
 
 function useChatAlerts(me, enabled) {
   const [toast, setToast] = useState('');
@@ -621,7 +684,29 @@ function Shell({ session }) {
   const [role, setRole] = useState(null);
   const toast = useChatAlerts(session.user.id, role === 'admin');
   const [waiting, setWaiting] = useState(0);
+  const [pending, setPending] = useState(0);
+  const [bookingToast, setBookingToast] = useState('');
+  const idx = useChatIndex(role === 'admin');
   useEffect(() => { if (role === 'admin') enablePush(sb, session.user.id); }, [role]);
+  useEffect(() => {
+    if (role !== 'admin') return undefined;
+    const f = async () => {
+      const { count } = await sb.from('bookings').select('id', { count: 'exact', head: true }).eq('status', 'pending');
+      setPending(count || 0);
+    };
+    f();
+    const t = setInterval(f, 15000);
+    const ch = sb.channel('admin-new-bookings').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bookings' }, (p) => {
+      f();
+      setBookingToast(`New booking: ${p.new.service_name || 'Service'}${p.new.customer_name ? ` (${p.new.customer_name})` : ''}`);
+      setTimeout(() => setBookingToast(''), 7000);
+    }).on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'bookings' }, f).subscribe();
+    return () => { clearInterval(t); sb.removeChannel(ch); };
+  }, [role]);
+  useEffect(() => {
+    const n = pending + idx.unread + waiting;
+    document.title = n > 0 ? `(${n}) DezartWash Admin` : 'DezartWash Admin';
+  }, [pending, idx.unread, waiting]);
   useEffect(() => {
     if (role !== 'admin') return undefined;
     const f = async () => {
@@ -646,21 +731,22 @@ function Shell({ session }) {
     );
   }
   const View = TABS[tab];
+  const badges = { Bookings: pending, Chats: idx.unread, 'Rider approvals': waiting };
   return (
     <div className="layout">
       <aside>
         <div className="brand"><span className="dez">Dezart</span><span className="wash">Wash</span></div>
         {Object.keys(TABS).map((t) => (
-          <button key={t} className={tab === t ? 'on' : ''} onClick={() => setTab(t)}>{t}{t === 'Rider approvals' && waiting > 0 ? <span className="count">{waiting}</span> : null}</button>
+          <button key={t} className={tab === t ? 'on' : ''} onClick={() => setTab(t)}>{t}{badges[t] > 0 ? <span className="count">{badges[t]}</span> : null}</button>
         ))}
         <div className="grow" />
         <small>{session.user.email}</small>
         <button onClick={() => sb.auth.signOut()}>Sign out</button>
       </aside>
       <main>
-        {toast && <div className="toast">{toast}</div>}
+        {(bookingToast || toast) && <div className="toast">{bookingToast || toast}</div>}
         <div className="topband"><h1>{tab}</h1></div>
-        <div className="content"><View /></div>
+        <div className="content"><View idx={idx} /></div>
       </main>
     </div>
   );
