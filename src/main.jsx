@@ -10,7 +10,23 @@ const sb = createClient(
 );
 const { useState, useEffect, useCallback, useRef } = React;
 const sar = (n) => `SAR ${Number(n).toLocaleString('en-US')}`;
-const STATUSES = ['pending', 'confirmed', 'on_the_way', 'arrived', 'in_progress', 'completed', 'cancelled'];
+const STATUSES = ['pending', 'assigned', 'confirmed', 'on_the_way', 'arrived', 'in_progress', 'completed', 'cancelled'];
+// What each status means for the admin.
+const STEP_LABEL = { pending: 'Waiting for a rider', assigned: 'Sent to rider, awaiting accept', confirmed: 'Accepted by rider', on_the_way: 'Rider on the way', arrived: 'Rider arrived', in_progress: 'Service in progress', completed: 'Completed', cancelled: 'Cancelled' };
+const STEPS = ['assigned', 'confirmed', 'on_the_way', 'arrived', 'in_progress', 'completed'];
+
+function Progress({ status }) {
+  if (status === 'cancelled') return <span className="badge rejected">Cancelled</span>;
+  const at = STEPS.indexOf(status);
+  return (
+    <div className="steps" title={STEP_LABEL[status]}>
+      <b className={`stat-${status}`}>{STEP_LABEL[status] || status}</b>
+      <div className="dots">
+        {STEPS.map((x, i) => <i key={x} className={i <= at ? 'on' : ''} />)}
+      </div>
+    </div>
+  );
+}
 const niceStatus = (s) => s.replace(/_/g, ' ');
 
 /* ------------------------------------------------------------- Login */
@@ -51,6 +67,13 @@ function useTable(table, order, filter) {
     else setRows(data);
   }, [table, order.col, order.asc, filter && filter[1]]);
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    if (table !== 'bookings') return undefined;
+    // Rider progress shows up here as it happens.
+    const ch = sb.channel(`live-${table}-${Math.random()}`).on('postgres_changes', { event: '*', schema: 'public', table }, load).subscribe();
+    const t = setInterval(load, 20000);
+    return () => { sb.removeChannel(ch); clearInterval(t); };
+  }, [table, load]);
   return { rows, error, load };
 }
 
@@ -258,18 +281,15 @@ function BookingsTable({ rows, reload }) {
                 <td>{r.vehicle}<br /><small>{r.address}</small></td>
                 <td>{sar(r.total)}</td>
                 <td>
-                  <select value={r.rider_id || ''} onChange={(e) => assign(r.id, e.target.value)}>
+                  <select value={r.rider_id || ''} disabled={['on_the_way', 'arrived', 'in_progress', 'completed', 'cancelled'].includes(r.status)} onChange={(e) => assign(r.id, e.target.value)}>
                     <option value="">Unassigned</option>
                     {riders.map((x) => <option key={x.id} value={x.id}>{x.skills?.includes(r.service_id) ? '★ ' : ''}{x.name}</option>)}
                   </select>
                 </td>
-                <td>
-                  <select className={`st ${r.status}`} value={r.status} onChange={(e) => setStatus(r.id, e.target.value)}>
-                    {STATUSES.map((s) => <option key={s} value={s}>{niceStatus(s)}</option>)}
-                  </select>
-                </td>
+                <td><Progress status={r.status} /></td>
                 <td className="actions">
                   <button className="link" onClick={() => setChat(r)}>Chat</button>
+                  {!['completed', 'cancelled'].includes(r.status) && <button className="link danger" onClick={() => setStatus(r.id, 'cancelled')}>Cancel</button>}
                   <button className="link danger" onClick={() => del(r.id)}>Delete</button>
                 </td>
               </tr>
