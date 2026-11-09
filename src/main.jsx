@@ -4,7 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { createClient } from '@supabase/supabase-js';
 import './styles.css';
 import { enablePush } from './push.js';
-import { startI18n } from './i18n.js';
+import { startI18n, addTranslations } from './i18n.js';
 
 const sb = createClient(
   import.meta.env.VITE_SUPABASE_URL,
@@ -809,7 +809,7 @@ function Editable({ table, order, cols, blank, keyCol = 'id', title, show }) {
             {rows.map((r) => (
               <tr key={r[keyCol]}>
                 {cols.map((c) => (
-                  <td key={c.key}>{c.type === 'checkbox' ? (r[c.key] ? 'Yes' : 'No') : c.type === 'number' && c.money ? sar(r[c.key]) : String(r[c.key] ?? '')}</td>
+                  <td key={c.key}>{c.type === 'checkbox' ? (r[c.key] ? 'Yes' : 'No') : c.type === 'number' && c.money ? sar(r[c.key]) : c.fmt ? c.fmt(r[c.key]) : String(r[c.key] ?? '')}</td>
                 ))}
                 <td className="actions">
                   <button className="link" onClick={() => setDraft({ ...r })}>Edit</button>
@@ -856,6 +856,12 @@ function Services() {
   const [sel, setSel] = useState('all');
   const [form, setForm] = useState(null);
   const options = cats.length ? cats.map((c) => c.id) : ['wash', 'care', 'protection', 'styling'];
+  useEffect(() => {
+    const map = {};
+    cats.forEach((c) => { if (c.name_ar) map[c.name] = c.name_ar; });
+    addTranslations(map);
+  }, [cats]);
+  const catName = Object.fromEntries(cats.map((c) => [c.id, c.name]));
   const current = cats.find((c) => c.id === sel);
   async function saveCat(e) {
     e.preventDefault();
@@ -902,7 +908,7 @@ function Services() {
         blank={{ id: '', name: '', category: sel === 'all' ? options[0] : sel, price: 0, duration_minutes: 0, premium: false, bike: false, active: true, sort: 200 }}
         cols={[
           { key: 'name', label: 'Name' }, { key: 'id', label: 'ID' },
-          { key: 'category', label: 'Category', options },
+          { key: 'category', label: 'Category', options, fmt: (v) => catName[v] || v },
           { key: 'price', label: 'Price', type: 'number', money: true },
           { key: 'duration_minutes', label: 'Duration (min, 0 = TBC)', type: 'number' },
           { key: 'premium', label: 'Premium carousel', type: 'checkbox' },

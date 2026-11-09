@@ -1,6 +1,54 @@
 // English / Arabic for the admin site. Text on the page is swapped for its
 // Arabic version when Arabic is on, and the page flips to right-to-left.
 const ar = {
+  'Exterior Car Wash': 'غسيل خارجي للسيارة',
+  'Interior Car Cleaning': 'تنظيف داخلي للسيارة',
+  'Full Car Wash': 'غسيل كامل للسيارة',
+  'Premium Car Detailing': 'تلميع فاخر للسيارة',
+  'Car Polishing': 'تلميع السيارة',
+  'Ceramic Coating': 'طلاء خزفي',
+  'Paint Protection Film (PPF)': 'فيلم حماية الطلاء (PPF)',
+  'Windshield Protection': 'حماية الزجاج الأمامي',
+  'Window Tinting': 'تظليل النوافذ',
+  'Standard Car Wash': 'غسيل السيارة القياسي',
+  'Car Wrapping': 'تغليف السيارة',
+  'Custom Vehicle Printing': 'طباعة مخصصة للمركبات',
+  'Premium Car Wash': 'غسيل السيارة المميز',
+  'Service Station Car Wash': 'غسيل السيارة في محطة الخدمة',
+  'Other Automotive Care': 'عناية أخرى بالسيارات',
+  'Clear PPF Full Body': 'فيلم حماية شفاف كامل',
+  'Clear PPF Partial Body': 'فيلم حماية شفاف جزئي',
+  'Clear PPF Quarter Body': 'فيلم حماية شفاف ربع الجسم',
+  'Full Polishing': 'تلميع كامل',
+  'Interior Polishing': 'تلميع داخلي',
+  'Exterior Polishing': 'تلميع خارجي',
+  'Nano Ceramic': 'نانو سيراميك',
+  'Windshield Protection Film': 'فيلم حماية الزجاج الأمامي',
+  'Bike Exterior Wash': 'غسيل خارجي للدراجة',
+  'Bike Wash and Shine': 'غسيل ولمعان الدراجة',
+  'Chain Clean and Lube': 'تنظيف وتشحيم السلسلة',
+  'Bike Detailing': 'تلميع الدراجة',
+  'Bike Polishing': 'تلميع الدراجة',
+  'Bike Ceramic Coating': 'طلاء خزفي للدراجة',
+  'Premium Wash': 'غسيل مميز',
+  'Yes': 'نعم',
+  'No': 'لا',
+  'ID': 'المعرّف',
+  'Add': 'إضافة',
+  'Booking': 'الحجز',
+  'Customer arrived': 'وصل العميل',
+  'DezartWash Admin': 'لوحة DezartWash',
+  'Duration (min, 0 = TBC)': 'المدة (بالدقائق، 0 = تُحدد لاحقاً)',
+  'Write a note for the station owner first.': 'اكتب ملاحظة لمالك المحطة أولاً.',
+  'station': 'محطة',
+  'wash': 'الغسيل',
+  'care': 'التفصيل والعناية',
+  'protection': 'الحماية',
+  'styling': 'التزيين',
+  'Wash': 'الغسيل',
+  'Detail & Care': 'التفصيل والعناية',
+  'Protection': 'الحماية',
+  'Styling': 'التزيين',
   'Station verification': 'التحقق من المحطات',
   'Individual rider': 'مندوب مستقل',
   'Station rider': 'مندوب محطة',
@@ -227,10 +275,46 @@ function pick() {
   return l.startsWith('ar') || tz === 'Asia/Riyadh';
 }
 
+const CUR = {
+  SAR: 'ر.س', AED: 'د.إ', KWD: 'د.ك', QAR: 'ر.ق', BHD: 'د.ب', OMR: 'ر.ع', JOD: 'د.أ', EGP: 'ج.م',
+  IQD: 'د.ع', LBP: 'ل.ل', ILS: '₪', SYP: 'ل.س', YER: 'ر.ي', MAD: 'د.م', DZD: 'د.ج', TND: 'د.ت',
+  LYD: 'د.ل', SDG: 'ج.س', MRU: 'أ.م', SOS: 'ش.ص', DJF: 'ف.ج', KMF: 'ف.ق',
+};
+
+// Words and amounts inside a longer sentence: "rider · 10:00 PM", "Category: wash".
+function part(p) {
+  const t = p.trim();
+  if (ar[t]) return ar[t];
+  const m = t.match(/^([A-Z]{3}) (-?[\d,.]+)$/);
+  if (m && CUR[m[1]]) return `${m[2]} ${CUR[m[1]]}`;
+  return null;
+}
+
 function lookup(text) {
   const t = text.trim();
-  const hit = ar[t];
-  return hit ? text.replace(t, hit) : null;
+  if (!t) return null;
+  let out = part(t);
+  if (!out && t.includes(' · ')) {
+    let changed = false;
+    out = t.split(' · ').map((x) => { const h = part(x); if (h) changed = true; return h || x; }).join(' · ');
+    if (!changed) out = null;
+  }
+  if (!out) {
+    const i = t.indexOf(': ');
+    if (i > 0) {
+      const h = ar[t.slice(0, i)];
+      if (h) out = `${h}: ${part(t.slice(i + 2)) || t.slice(i + 2)}`;
+    }
+  }
+  if (!out && /\d{1,2}:\d{2}/.test(t) && /\b(AM|PM)\b/.test(t)) {
+    out = t.replace(/\bAM\b/g, 'ص').replace(/\bPM\b/g, 'م');
+  }
+  return out ? text.replace(t, out) : null;
+}
+
+export function addTranslations(map) {
+  Object.assign(ar, map);
+  if (on) apply();
 }
 
 function fixText(node) {
@@ -242,7 +326,7 @@ function fixText(node) {
       orig.set(node, base);
       node.nodeValue = hit;
     }
-  } else if (o !== undefined && ar[o.trim()] && node.nodeValue !== o) {
+  } else if (o !== undefined && lookup(o) && node.nodeValue !== o) {
     node.nodeValue = o;
     orig.delete(node);
   }
