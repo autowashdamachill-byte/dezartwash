@@ -366,11 +366,51 @@ function Chats({ idx }) {
 }
 
 /* ------------------------------------------------------------ Bookings */
+/* Admin allots a station and a free time slot to a station wash. */
+function StationVisitAssign({ row, stations, reload }) {
+  const visitStations = stations.filter((x) => ['visit', 'both'].includes(x.mode));
+  const initDay = (row.scheduled_at ? new Date(row.scheduled_at) : new Date());
+  const [sid, setSid] = useState(row.station_id || '');
+  const [day, setDay] = useState(`${initDay.getFullYear()}-${String(initDay.getMonth() + 1).padStart(2, '0')}-${String(initDay.getDate()).padStart(2, '0')}`);
+  const [slots, setSlots] = useState([]);
+  const [slot, setSlot] = useState('');
+  const [busy, setBusy] = useState(false);
+  const locked = ['in_progress', 'completed', 'cancelled'].includes(row.status);
+  useEffect(() => {
+    setSlot('');
+    if (!sid || !day) { setSlots([]); return; }
+    sb.rpc('station_slots', { p_station: sid, p_day: day }).then(({ data }) => setSlots(data || []));
+  }, [sid, day]);
+  async function allot() {
+    setBusy(true);
+    const { error } = await sb.rpc('admin_assign_station_visit', { p_booking: row.id, p_station: sid, p_time: slot });
+    setBusy(false);
+    if (error) alert(error.message); else reload();
+  }
+  const fmt = (t) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return (
+    <div>
+      <small>Customer visits a station. {row.station_id ? 'Allotted.' : 'Waiting for you to allot a station and time.'}</small>
+      <select value={sid} disabled={locked} onChange={(e) => setSid(e.target.value)}>
+        <option value="">Select station</option>
+        {visitStations.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+      </select>
+      <input type="date" value={day} disabled={locked} onChange={(e) => setDay(e.target.value)} />
+      <select value={slot} disabled={locked || !sid} onChange={(e) => setSlot(e.target.value)}>
+        <option value="">{sid ? (slots.length ? 'Select time' : 'No slots this day') : 'Pick a station first'}</option>
+        {slots.map((x) => <option key={x.slot_start} value={x.slot_start} disabled={x.free <= 0}>{fmt(x.slot_start)} ({x.free} free)</option>)}
+      </select>
+      {!locked && sid && slot && <button className="primary send" disabled={busy} onClick={allot}>{busy ? 'Saving…' : row.station_id ? 'Change station / time' : 'Allot station'}</button>}
+    </div>
+  );
+}
+
 const BOOKING_SELECT = '*, stations(name), riders(name, station_id, stations(name))';
 
 function BookingsTable({ rows, reload }) {
   const riders = useTable('riders', { col: 'name' }).rows.filter((r) => r.approved && !r.station_id);
-  const stations = useTable('stations', { col: 'name' }).rows.filter((x) => x.status === 'approved' && ['home', 'both'].includes(x.mode));
+  const allStations = useTable('stations', { col: 'name' }).rows.filter((x) => x.status === 'approved');
+  const stations = allStations.filter((x) => ['home', 'both'].includes(x.mode));
   const [chat, setChat] = useState(null);
   const [pick, setPick] = useState({});
   const [sending, setSending] = useState('');
@@ -410,7 +450,7 @@ function BookingsTable({ rows, reload }) {
                 <td>
                   <ProviderBadge kind={pv.kind} name={pv.name} />
                   {r.fulfilment === 'station' ? (
-                    <div><small>Customer visits the station</small></div>
+                    <StationVisitAssign row={r} stations={allStations} reload={reload} />
                   ) : (
                     <>
                       <select value={pick[r.id] ?? current} disabled={locked} onChange={(e) => setPick((p) => ({ ...p, [r.id]: e.target.value }))}>
