@@ -1,3 +1,4 @@
+import logoUrl from './logo.png';
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { createClient } from '@supabase/supabase-js';
@@ -79,7 +80,7 @@ function Login() {
     <div className="login">
       <div className="water" />
       <form className="card" onSubmit={submit}>
-        <div className="brand"><span className="dez">Dezart</span><span className="wash">Wash</span></div>
+        <div className="brand"><img src={logoUrl} alt="DezartWash" style={{ width: 200, maxWidth: '100%' }} /></div>
         <p className="muted">Admin panel</p>
         <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required />
         <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} required />
@@ -1026,7 +1027,7 @@ function Shell({ session }) {
   return (
     <div className="layout">
       <aside>
-        <div className="brand"><span className="dez">Dezart</span><span className="wash">Wash</span></div>
+        <div className="brand"><img src={logoUrl} alt="DezartWash" style={{ width: 200, maxWidth: '100%' }} /></div>
         {Object.keys(TABS).map((t) => (
           <button key={t} className={tab === t ? 'on' : ''} onClick={() => setTab(t)}>{t}{badges[t] > 0 ? <span className="count">{badges[t]}</span> : null}</button>
         ))}
