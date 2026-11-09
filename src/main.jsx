@@ -846,21 +846,33 @@ function Editable({ table, order, cols, blank, keyCol = 'id', title }) {
   );
 }
 
-const CATS = ['wash', 'care', 'protection', 'styling'];
-const Services = () => (
-  <Editable title="Services" table="services" order={{ col: 'sort' }}
-    blank={{ id: '', name: '', category: 'wash', price: 0, duration_minutes: 0, premium: false, bike: false, active: true, sort: 200 }}
-    cols={[
-      { key: 'name', label: 'Name' }, { key: 'id', label: 'ID' },
-      { key: 'category', label: 'Category', options: CATS },
-      { key: 'price', label: 'Price', type: 'number', money: true },
-      { key: 'duration_minutes', label: 'Duration (min, 0 = TBC)', type: 'number' },
-      { key: 'premium', label: 'Premium carousel', type: 'checkbox' },
-      { key: 'bike', label: 'Motorbike service', type: 'checkbox' },
-      { key: 'active', label: 'Active', type: 'checkbox' },
-      { key: 'sort', label: 'Order', type: 'number' },
-    ]} keyCol="id" />
-);
+const Services = () => {
+  const cats = useTable('service_categories', { col: 'sort' }).rows;
+  const options = cats.length ? cats.map((c) => c.id) : ['wash', 'care', 'protection', 'styling'];
+  return (
+    <>
+      <Editable title="Categories" table="service_categories" order={{ col: 'sort' }}
+        blank={{ id: '', name: '', name_ar: '', sort: 100, active: true }}
+        cols={[
+          { key: 'name', label: 'Name' }, { key: 'name_ar', label: 'Arabic name' }, { key: 'id', label: 'ID (no spaces)' },
+          { key: 'active', label: 'Active', type: 'checkbox' },
+          { key: 'sort', label: 'Order', type: 'number' },
+        ]} keyCol="id" />
+      <Editable title="Services" table="services" order={{ col: 'sort' }}
+        blank={{ id: '', name: '', category: options[0], price: 0, duration_minutes: 0, premium: false, bike: false, active: true, sort: 200 }}
+        cols={[
+          { key: 'name', label: 'Name' }, { key: 'id', label: 'ID' },
+          { key: 'category', label: 'Category', options },
+          { key: 'price', label: 'Price', type: 'number', money: true },
+          { key: 'duration_minutes', label: 'Duration (min, 0 = TBC)', type: 'number' },
+          { key: 'premium', label: 'Premium carousel', type: 'checkbox' },
+          { key: 'bike', label: 'Motorbike service', type: 'checkbox' },
+          { key: 'active', label: 'Active', type: 'checkbox' },
+          { key: 'sort', label: 'Order', type: 'number' },
+        ]} keyCol="id" />
+    </>
+  );
+};
 const Plans = () => (
   <Editable title="Monthly plans" table="monthly_plans" order={{ col: 'group_name' }}
     blank={{ group_name: 'Standard Wash', washes: 6, home_price: 0, station_price: 0, active: true }}
