@@ -374,24 +374,27 @@ function Chats({ idx }) {
 /* ------------------------------------------------------------ Bookings */
 /* Station wash: choose a station and send it. The station approves and sets the time. */
 function StationVisitAssign({ row, stations, reload }) {
-  const visitStations = stations.filter((x) => ['visit', 'both'].includes(x.mode));
   const [sid, setSid] = useState('');
   const [busy, setBusy] = useState(false);
-  const locked = ['in_progress', 'completed', 'cancelled'].includes(row.status);
+  const done = ['confirmed', 'arrived', 'in_progress', 'completed', 'cancelled'].includes(row.status);
+  const current = stations.find((x) => x.id === row.station_id);
   async function send() {
     setBusy(true);
     const { error } = await sb.rpc('admin_send_to_station', { p_booking: row.id, p_station: sid });
     setBusy(false);
     if (error) alert(error.message); else { setSid(''); reload(); }
   }
+  if (done) {
+    return current ? <div><small>{row.status === 'cancelled' ? 'Was sent to' : 'Accepted by'} <b>{current.name}</b></small></div> : null;
+  }
   return (
     <div>
-      {row.station_id && <div><small>Sent to <b>{stations.find((x) => x.id === row.station_id)?.name || 'station'}</b></small></div>}
-      <select style={{ minWidth: 190 }} value={sid} disabled={locked} onChange={(e) => setSid(e.target.value)}>
-        <option value="">{row.station_id ? 'Change station' : 'Select a service station'}</option>
-        {visitStations.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+      {current && <div><small>Sent to <b>{current.name}</b>. Waiting for approval.</small></div>}
+      <select style={{ minWidth: 190 }} value={sid} onChange={(e) => setSid(e.target.value)}>
+        <option value="">{current ? 'Send to another station' : 'Select a service station'}</option>
+        {stations.filter((x) => x.id !== row.station_id).map((x) => <option key={x.id} value={x.id}>{x.name}{x.city ? ` · ${x.city}` : ''}</option>)}
       </select>
-      {!locked && sid && sid !== row.station_id && <button className="primary send" disabled={busy} onClick={send}>{busy ? 'Sending…' : 'Send to station'}</button>}
+      {sid && <button className="primary send" disabled={busy} onClick={send}>{busy ? 'Sending…' : 'Send for approval'}</button>}
     </div>
   );
 }
@@ -480,17 +483,11 @@ function BookingsTable({ rows, reload }) {
 
 function Bookings() {
   const { rows, error, load } = useTable('bookings', { col: 'created_at', asc: false }, null, BOOKING_SELECT);
-  const stations = useTable('stations', { col: 'name' }).rows.filter((x) => x.status === 'approved');
   const [f, setF] = useState('all');
-  const [prov, setProv] = useState('all');
-  const [st, setSt] = useState('all');
   const [q, setQ] = useState('');
   const text = q.trim().toLowerCase();
   const shown = rows.filter((r) => {
     if (f !== 'all' && r.status !== f) return false;
-    const pv = providerOf(r).kind;
-    if (prov !== 'all' && pv !== prov) return false;
-    if (st !== 'all' && r.station_id !== st && r.riders?.station_id !== st) return false;
     if (text && !`${r.customer_name} ${r.phone} ${r.service_name} ${r.vehicle} ${r.address}`.toLowerCase().includes(text)) return false;
     return true;
   });
@@ -510,14 +507,6 @@ function Bookings() {
         ))}
       </div>
       <div className="bar wrap">
-        <select value={prov} onChange={(e) => setProv(e.target.value)}>
-          <option value="all">All providers</option>
-          {Object.entries(PROVIDER).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-        </select>
-        <select value={st} onChange={(e) => setSt(e.target.value)}>
-          <option value="all">All stations</option>
-          {stations.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
-        </select>
         <input placeholder="Search customer, phone, service" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
       {error && <p className="err">{error}</p>}
