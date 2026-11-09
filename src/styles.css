@@ -74,3 +74,10 @@ html[dir=rtl] .count{margin-left:0;margin-right:8px}
 button.send{display:block;margin-top:6px;padding:7px 14px;font-size:13px;border-radius:999px}
 
 .foot{text-align:center;color:#6b7a93;font-size:12.5px;padding:18px 0 26px}
+
+.pbadge{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:20px;font-size:12px;font-weight:700;border:1px solid;white-space:nowrap;margin-bottom:4px}
+.pbadge i{font-style:normal}
+.pbadge.orange{color:#b34700;background:#fff1e6;border-color:#f0a46b}
+.pbadge.green{color:#1f6b2a;background:#e8f5e9;border-color:#7fbf86}
+.pbadge.blue{color:#1456c9;background:#e8f0ff;border-color:#8db2f5}
+.pbadge.grey{color:#5b6b88;background:#f0f2f6;border-color:#c5ccd9}

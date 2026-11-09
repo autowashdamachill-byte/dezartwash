@@ -10,7 +10,35 @@ const sb = createClient(
   import.meta.env.VITE_SUPABASE_ANON_KEY,
 );
 const { useState, useEffect, useCallback, useRef } = React;
-const sar = (n) => `SAR ${Number(n).toLocaleString('en-US')}`;
+const money = (n, cur = 'SAR') => `${cur || 'SAR'} ${Number(n).toLocaleString('en-US')}`;
+const sar = (n) => money(n);
+// The same price number is used in every country; only the currency differs.
+function revenueText(rows) {
+  const by = {};
+  rows.forEach((x) => { const c = x.currency || 'SAR'; by[c] = (by[c] || 0) + Number(x.total); });
+  const e = Object.entries(by);
+  return e.length ? e.map(([c, v]) => money(v, c)).join(' · ') : money(0);
+}
+
+/* Who performs a job: icon + label + colour, never colour alone. */
+const PROVIDER = {
+  individual: { icon: '🛵', label: 'Individual rider', cls: 'orange' },
+  station_rider: { icon: '✔', label: 'Station rider', cls: 'green' },
+  station: { icon: '🏪', label: 'Service station', cls: 'blue' },
+  sent: { icon: '🏪', label: 'Sent to station', cls: 'blue' },
+  none: { icon: '○', label: 'Unassigned', cls: 'grey' },
+};
+function providerOf(r) {
+  if (r.fulfilment === 'station') return { kind: 'station', name: r.stations?.name };
+  if (r.rider_id && r.riders?.station_id) return { kind: 'station_rider', name: r.riders?.stations?.name };
+  if (r.rider_id) return { kind: 'individual' };
+  if (r.station_id) return { kind: 'sent', name: r.stations?.name };
+  return { kind: 'none' };
+}
+function ProviderBadge({ kind, name }) {
+  const p = PROVIDER[kind] || PROVIDER.none;
+  return <span className={`pbadge ${p.cls}`}><i aria-hidden="true">{p.icon}</i>{p.label}{name ? ` · ${name}` : ''}</span>;
+}
 const STATUSES = ['pending', 'assigned', 'confirmed', 'on_the_way', 'arrived', 'in_progress', 'completed', 'cancelled'];
 // What each status means for the admin.
 const STEP_LABEL = { pending: 'Waiting for a rider', assigned: 'Request sent to rider', confirmed: 'Confirmed by rider', on_the_way: 'Rider on the way', arrived: 'Rider arrived', in_progress: 'Service in progress', completed: 'Completed', cancelled: 'Cancelled' };
@@ -57,19 +85,19 @@ function Login() {
 }
 
 /* ------------------------------------------------------------- Data */
-function useTable(table, order, filter) {
+function useTable(table, order, filter, select = '*') {
   const [rows, setRows] = useState([]);
   const [error, setError] = useState('');
   const load = useCallback(async () => {
-    let q = sb.from(table).select('*').order(order.col, { ascending: order.asc ?? true });
+    let q = sb.from(table).select(select).order(order.col, { ascending: order.asc ?? true });
     if (filter) q = q.eq(filter[0], filter[1]);
     const { data, error } = await q;
     if (error) setError(error.message);
     else setRows(data);
-  }, [table, order.col, order.asc, filter && filter[1]]);
+  }, [table, order.col, order.asc, filter && filter[1], select]);
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
-    if (table !== 'bookings') return undefined;
+    if (table !== 'bookings' && table !== 'stations') return undefined;
     // Rider progress shows up here as it happens.
     const ch = sb.channel(`live-${table}-${Math.random()}`).on('postgres_changes', { event: '*', schema: 'public', table }, load).subscribe();
     const t = setInterval(load, 20000);
@@ -170,7 +198,6 @@ function Dashboard() {
   const c = useTable('profiles', { col: 'created_at' });
   const r = useTable('riders', { col: 'created_at' });
   const live = b.rows.filter((x) => x.status !== 'cancelled');
-  const revenue = live.reduce((s, x) => s + Number(x.total), 0);
   const completed = b.rows.filter((x) => x.status === 'completed');
   const days = [...Array(14)].map((_, i) => {
     const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - (13 - i)); return d;
@@ -187,7 +214,7 @@ function Dashboard() {
   const stats = [
     ['Bookings', b.rows.length],
     ['Pending', b.rows.filter((x) => x.status === 'pending').length],
-    ['Revenue', sar(revenue)],
+    ['Revenue', revenueText(live)],
     ['Completed', completed.length],
     ['Customers', c.rows.filter((x) => x.role === 'customer').length],
     ['Riders', r.rows.filter((x) => x.approved).length],
@@ -320,17 +347,22 @@ function Chats({ idx }) {
 }
 
 /* ------------------------------------------------------------ Bookings */
+const BOOKING_SELECT = '*, stations(name), riders(name, station_id, stations(name))';
+
 function BookingsTable({ rows, reload }) {
-  const riders = useTable('riders', { col: 'name' }).rows.filter((r) => r.approved);
+  const riders = useTable('riders', { col: 'name' }).rows.filter((r) => r.approved && !r.station_id);
+  const stations = useTable('stations', { col: 'name' }).rows.filter((x) => x.status === 'approved' && ['home', 'both'].includes(x.mode));
   const [chat, setChat] = useState(null);
   const [pick, setPick] = useState({});
   const [sending, setSending] = useState('');
-  // Choosing a rider only selects them; the request goes out with the button.
+  // Choosing a rider or station only selects it; the request goes out with the button.
   async function send(id) {
-    const rider = pick[id];
-    if (!rider) return;
+    const v = pick[id];
+    if (!v) return;
     setSending(id);
-    const { error } = await sb.rpc('assign_rider', { p_booking: id, p_rider: rider });
+    const { error } = v.startsWith('s:')
+      ? await sb.rpc('assign_station', { p_booking: id, p_station: v.slice(2) })
+      : await sb.rpc('assign_rider', { p_booking: id, p_rider: v });
     setSending('');
     if (error) alert(error.message);
     else setPick((p) => { const n = { ...p }; delete n[id]; return n; });
@@ -338,27 +370,45 @@ function BookingsTable({ rows, reload }) {
   }
   async function setStatus(id, status) { await sb.from('bookings').update({ status }).eq('id', id); reload(); }
   async function del(id) { if (confirm('Delete this booking?')) { await sb.from('bookings').delete().eq('id', id); reload(); } }
-  if (!rows.length) return <p className="muted">No bookings yet.</p>;
+  if (!rows.length) return <p className="muted">No bookings match.</p>;
   return (
     <>
       <div className="card table-wrap">
         <table>
-          <thead><tr><th>Date</th><th>Customer</th><th>Service</th><th>Vehicle / Address</th><th>Total</th><th>Rider</th><th>Status</th><th /></tr></thead>
+          <thead><tr><th>Date</th><th>Customer</th><th>Service</th><th>Vehicle / Address</th><th>Total</th><th>Assigned to</th><th>Status</th><th /></tr></thead>
           <tbody>
-            {rows.map((r) => (
+            {rows.map((r) => {
+              const pv = providerOf(r);
+              const locked = ['confirmed', 'on_the_way', 'arrived', 'in_progress', 'completed', 'cancelled'].includes(r.status);
+              const current = r.rider_id || (r.station_id ? `s:${r.station_id}` : '');
+              return (
               <tr key={r.id}>
                 <td>{r.scheduled_at ? new Date(r.scheduled_at).toLocaleString() : '-'}</td>
                 <td>{r.customer_name || '-'}<br /><small>{r.phone}</small></td>
                 <td>{r.service_name}</td>
                 <td>{r.vehicle}<br /><small>{r.address}</small></td>
-                <td>{sar(r.total)}</td>
+                <td>{money(r.total, r.currency)}</td>
                 <td>
-                  <select value={pick[r.id] ?? r.rider_id ?? ''} disabled={['confirmed', 'on_the_way', 'arrived', 'in_progress', 'completed', 'cancelled'].includes(r.status)} onChange={(e) => setPick((p) => ({ ...p, [r.id]: e.target.value }))}>
-                    <option value="">Select a rider</option>
-                    {riders.map((x) => <option key={x.id} value={x.id}>{x.skills?.includes(r.service_id) ? '★ ' : ''}{x.name}</option>)}
-                  </select>
-                  {['pending', 'assigned'].includes(r.status) && pick[r.id] && pick[r.id] !== r.rider_id && (
-                    <button className="primary send" disabled={sending === r.id} onClick={() => send(r.id)}>{sending === r.id ? 'Sending…' : 'Send to rider'}</button>
+                  <ProviderBadge kind={pv.kind} name={pv.name} />
+                  {r.fulfilment === 'station' ? (
+                    <div><small>Customer visits the station</small></div>
+                  ) : (
+                    <>
+                      <select value={pick[r.id] ?? current} disabled={locked} onChange={(e) => setPick((p) => ({ ...p, [r.id]: e.target.value }))}>
+                        <option value="">Select rider or station</option>
+                        <optgroup label="Individual riders">
+                          {riders.map((x) => <option key={x.id} value={x.id}>{x.skills?.includes(r.service_id) ? '★ ' : ''}{x.name}</option>)}
+                        </optgroup>
+                        {stations.length > 0 && (
+                          <optgroup label="Service stations">
+                            {stations.map((x) => <option key={x.id} value={`s:${x.id}`}>{x.name}</option>)}
+                          </optgroup>
+                        )}
+                      </select>
+                      {['pending', 'assigned'].includes(r.status) && pick[r.id] && pick[r.id] !== current && (
+                        <button className="primary send" disabled={sending === r.id} onClick={() => send(r.id)}>{sending === r.id ? 'Sending…' : pick[r.id].startsWith('s:') ? 'Send to station' : 'Send to rider'}</button>
+                      )}
+                    </>
                   )}
                 </td>
                 <td><Progress status={r.status} /></td>
@@ -368,7 +418,8 @@ function BookingsTable({ rows, reload }) {
                   <button className="link danger" onClick={() => del(r.id)}>Delete</button>
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -378,18 +429,152 @@ function BookingsTable({ rows, reload }) {
 }
 
 function Bookings() {
-  const { rows, error, load } = useTable('bookings', { col: 'created_at', asc: false });
+  const { rows, error, load } = useTable('bookings', { col: 'created_at', asc: false }, null, BOOKING_SELECT);
+  const stations = useTable('stations', { col: 'name' }).rows.filter((x) => x.status === 'approved');
   const [f, setF] = useState('all');
-  const shown = f === 'all' ? rows : rows.filter((r) => r.status === f);
+  const [prov, setProv] = useState('all');
+  const [st, setSt] = useState('all');
+  const [q, setQ] = useState('');
+  const text = q.trim().toLowerCase();
+  const shown = rows.filter((r) => {
+    if (f !== 'all' && r.status !== f) return false;
+    const pv = providerOf(r).kind;
+    if (prov !== 'all' && pv !== prov) return false;
+    if (st !== 'all' && r.station_id !== st && r.riders?.station_id !== st) return false;
+    if (text && !`${r.customer_name} ${r.phone} ${r.service_name} ${r.vehicle} ${r.address}`.toLowerCase().includes(text)) return false;
+    return true;
+  });
+  const count = (k) => rows.filter((r) => providerOf(r).kind === k).length;
   return (
     <>
+      <div className="stats">
+        <div className="card stat"><span>Unassigned</span><b>{count('none')}</b></div>
+        <div className="card stat"><span>Individual riders</span><b>{count('individual')}</b></div>
+        <div className="card stat"><span>Station riders</span><b>{count('station_rider')}</b></div>
+        <div className="card stat"><span>Station visits</span><b>{count('station')}</b></div>
+        <div className="card stat"><span>Sent to stations</span><b>{count('sent')}</b></div>
+      </div>
       <div className="bar wrap">
-        {['all', ...STATUSES].map((s) => (
-          <button key={s} className={`pill ${f === s ? 'on' : ''}`} onClick={() => setF(s)}>{niceStatus(s)}</button>
+        {['all', ...STATUSES].map((x) => (
+          <button key={x} className={`pill ${f === x ? 'on' : ''}`} onClick={() => setF(x)}>{niceStatus(x)}</button>
         ))}
+      </div>
+      <div className="bar wrap">
+        <select value={prov} onChange={(e) => setProv(e.target.value)}>
+          <option value="all">All providers</option>
+          {Object.entries(PROVIDER).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+        </select>
+        <select value={st} onChange={(e) => setSt(e.target.value)}>
+          <option value="all">All stations</option>
+          {stations.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+        </select>
+        <input placeholder="Search customer, phone, service" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
       {error && <p className="err">{error}</p>}
       <BookingsTable rows={shown} reload={load} />
+    </>
+  );
+}
+
+/* ------------------------------------------------------------ Stations */
+const STATION_STATUS = { draft: 'Not submitted', submitted: 'Submitted', under_review: 'Under review', needs_info: 'Needs information', approved: 'Approved', rejected: 'Rejected', suspended: 'Suspended' };
+const STATION_DOC = { commercial_registration: 'Commercial registration', municipality_licence: 'Municipality licence', vat_certificate: 'VAT certificate', owner_id: 'Owner ID', location_photo: 'Station photo', other: 'Other document' };
+const MODE = { home: 'Home service only', visit: 'Customers visit', both: 'Home service and visits' };
+
+function StationDocLink({ doc }) {
+  const [url, setUrl] = useState('');
+  useEffect(() => {
+    sb.storage.from('station-docs').createSignedUrl(doc.file_path, 3600).then(({ data }) => setUrl(data?.signedUrl || ''));
+  }, [doc.file_path]);
+  const isImg = /\.(png|jpe?g|webp|gif)$/i.test(doc.file_path);
+  if (!url) return <span className="muted">Loading…</span>;
+  return isImg
+    ? <a href={url} target="_blank" rel="noreferrer"><img className="thumb" src={url} alt={doc.kind} /></a>
+    : <a href={url} target="_blank" rel="noreferrer">Open file</a>;
+}
+
+function StationReview({ station, onClose, reload }) {
+  const [docs, setDocs] = useState([]);
+  const [note, setNote] = useState(station.review_note || '');
+  const load = useCallback(async () => {
+    const { data } = await sb.from('station_documents').select('*').eq('station_id', station.id).order('created_at');
+    setDocs(data || []);
+  }, [station.id]);
+  useEffect(() => { load(); }, [load]);
+  async function docStatus(id, status) { await sb.from('station_documents').update({ status }).eq('id', id); load(); }
+  async function decide(status) {
+    if (['needs_info', 'rejected', 'suspended'].includes(status) && !note.trim()) { alert('Write a note for the station owner first.'); return; }
+    const { error } = await sb.rpc('review_station', { p_station: station.id, p_status: status, p_note: note || null });
+    if (error) alert(error.message); else { reload(); onClose(); }
+  }
+  return (
+    <div className="modal" onClick={onClose}>
+      <div className="card review" onClick={(e) => e.stopPropagation()}>
+        <div className="bar"><h3>{station.name}</h3><button className="link" onClick={onClose}>Close</button></div>
+        <p className="muted">{station.phone} · {station.email || 'no email'} · {station.city}, {station.address}</p>
+        <p>Status: <b>{STATION_STATUS[station.status]}</b> · {MODE[station.mode]} · {station.capacity} cars per slot</p>
+        <p>Commercial registration: <b>{station.commercial_reg || '-'}</b> · VAT: <b>{station.vat_no || '-'}</b></p>
+        {station.lat && <p><a href={`https://www.google.com/maps?q=${station.lat},${station.lng}`} target="_blank" rel="noreferrer">Open location on map</a></p>}
+        <h4>Documents</h4>
+        {!docs.length && <p className="muted">No documents uploaded.</p>}
+        <div className="docs">
+          {docs.map((d) => (
+            <div className="doc" key={d.id}>
+              <StationDocLink doc={d} />
+              <div>
+                <b>{STATION_DOC[d.kind]}</b>
+                <div className={`badge ${d.status}`}>{d.status}</div>
+                {d.ai_type && <div><small>AI sees: <b>{AI[d.ai_type] || d.ai_type}</b></small></div>}
+                <div className="actions">
+                  <button className="link" onClick={() => docStatus(d.id, 'approved')}>Approve</button>
+                  <button className="link danger" onClick={() => docStatus(d.id, 'rejected')}>Reject</button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <label>Note to the station (required to reject, suspend or ask for more)
+          <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Commercial registration is expired" />
+        </label>
+        <div className="bar wrap">
+          <button className="link" onClick={() => decide('under_review')}>Mark under review</button>
+          <button className="link" onClick={() => decide('needs_info')}>Request more information</button>
+          <button className="primary" onClick={() => decide('approved')}>Approve station</button>
+          <button className="reject" onClick={() => decide('rejected')}>Reject</button>
+          {station.status === 'approved' && <button className="reject" onClick={() => decide('suspended')}>Suspend</button>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Stations() {
+  const { rows, error, load } = useTable('stations', { col: 'created_at', asc: false });
+  const riders = useTable('riders', { col: 'name' }).rows;
+  const [show, setShow] = useState('submitted');
+  const [review, setReview] = useState(null);
+  const count = (k) => rows.filter((r) => r.status === k).length;
+  const list = rows.filter((r) => (show === 'all' ? true : r.status === show));
+  return (
+    <>
+      <div className="bar wrap">
+        {[['submitted', `Waiting (${count('submitted')})`], ['under_review', 'Under review'], ['needs_info', 'Needs info'], ['approved', 'Approved'], ['rejected', 'Rejected'], ['suspended', 'Suspended'], ['draft', 'Not submitted'], ['all', 'All']].map(([k, l]) => (
+          <button key={k} className={`pill ${show === k ? 'on' : ''}`} onClick={() => setShow(k)}>{l}</button>
+        ))}
+      </div>
+      {error && <p className="err">{error}</p>}
+      {!list.length && <p className="muted">No stations here.</p>}
+      <div className="grid2">
+        {list.map((r) => (
+          <div className="card" key={r.id}>
+            <div className="bar"><h3>{r.name}</h3><span className={`badge ${r.status === 'approved' ? 'approved' : r.status === 'rejected' || r.status === 'suspended' ? 'rejected' : 'pending'}`}>{STATION_STATUS[r.status]}</span></div>
+            <p className="muted">{r.city} · {r.phone}</p>
+            <p><ProviderBadge kind="station" /> <small>{MODE[r.mode]} · {riders.filter((x) => x.station_id === r.id).length} riders</small></p>
+            <div className="bar"><button className="primary" onClick={() => setReview(r)}>Review station</button></div>
+          </div>
+        ))}
+      </div>
+      {review && <StationReview station={review} onClose={() => setReview(null)} reload={load} />}
     </>
   );
 }
@@ -467,6 +652,7 @@ function Riders() {
   const names = Object.fromEntries(useTable('services', { col: 'sort' }).rows.map((x) => [x.id, x.name]));
   const email = Object.fromEntries(profiles.map((p) => [p.id, p.email]));
   const [review, setReview] = useState(null);
+  const stationNames = Object.fromEntries(useTable('stations', { col: 'name' }).rows.map((x) => [x.id, x.name]));
   const approved = rows.filter((r) => r.approved);
   async function patch(id, v) { await sb.from('riders').update(v).eq('id', id); load(); }
   async function del(r) {
@@ -487,10 +673,11 @@ function Riders() {
       {!approved.length && <p className="muted">No approved riders yet. New riders appear under "Rider approvals" first.</p>}
       <div className="card table-wrap">
         <table>
-          <thead><tr><th>Rider</th><th>Contact</th><th>Vehicle</th><th>Best at</th><th>Status</th><th>Last location</th><th /></tr></thead>
+          <thead><tr><th>Rider</th><th>Provider</th><th>Contact</th><th>Vehicle</th><th>Best at</th><th>Status</th><th>Last location</th><th /></tr></thead>
           <tbody>{approved.map((r) => (
             <tr key={r.id}>
               <td><b>{r.name}</b></td>
+              <td><ProviderBadge kind={r.station_id ? 'station_rider' : 'individual'} name={stationNames[r.station_id]} /></td>
               <td><a href={`tel:${r.phone}`}>{r.phone}</a><br /><small>{email[r.id] || ''}</small></td>
               <td>{r.vehicle}</td>
               <td>{(r.skills || []).map((id) => names[id] || id).join(', ') || '-'}</td>
@@ -627,7 +814,7 @@ const Services = () => (
     cols={[
       { key: 'name', label: 'Name' }, { key: 'id', label: 'ID' },
       { key: 'category', label: 'Category', options: CATS },
-      { key: 'price', label: 'Price (SAR)', type: 'number', money: true },
+      { key: 'price', label: 'Price', type: 'number', money: true },
       { key: 'duration_minutes', label: 'Duration (min, 0 = TBC)', type: 'number' },
       { key: 'premium', label: 'Premium carousel', type: 'checkbox' },
       { key: 'bike', label: 'Motorbike service', type: 'checkbox' },
@@ -671,7 +858,7 @@ function Customers() {
   );
 }
 
-const TABS = { Dashboard, Bookings, Chats, 'Rider approvals': Approvals, Riders, Services, 'Monthly plans': Plans, Coupons, Customers };
+const TABS = { Dashboard, Bookings, Chats, 'Rider approvals': Approvals, Riders, 'Station verification': Stations, Services, 'Monthly plans': Plans, Coupons, Customers };
 
 function useChatAlerts(me, enabled) {
   const [toast, setToast] = useState('');
@@ -695,6 +882,7 @@ function Shell({ session }) {
   const [role, setRole] = useState(null);
   const toast = useChatAlerts(session.user.id, role === 'admin');
   const [waiting, setWaiting] = useState(0);
+  const [stationWaiting, setStationWaiting] = useState(0);
   const [pending, setPending] = useState(0);
   const [bookingToast, setBookingToast] = useState('');
   const idx = useChatIndex(role === 'admin');
@@ -715,14 +903,16 @@ function Shell({ session }) {
     return () => { clearInterval(t); sb.removeChannel(ch); };
   }, [role]);
   useEffect(() => {
-    const n = pending + idx.unread + waiting;
+    const n = pending + idx.unread + waiting + stationWaiting;
     document.title = n > 0 ? `(${n}) Dezartcar Wash Admin` : 'Dezartcar Wash Admin';
-  }, [pending, idx.unread, waiting]);
+  }, [pending, idx.unread, waiting, stationWaiting]);
   useEffect(() => {
     if (role !== 'admin') return undefined;
     const f = async () => {
       const { count } = await sb.from('riders').select('id', { count: 'exact', head: true }).eq('verification', 'submitted').eq('approved', false);
       setWaiting(count || 0);
+      const st = await sb.from('stations').select('id', { count: 'exact', head: true }).eq('status', 'submitted');
+      setStationWaiting(st.count || 0);
     };
     f();
     const t = setInterval(f, 15000);
@@ -742,7 +932,7 @@ function Shell({ session }) {
     );
   }
   const View = TABS[tab];
-  const badges = { Bookings: pending, Chats: idx.unread, 'Rider approvals': waiting };
+  const badges = { Bookings: pending, Chats: idx.unread, 'Rider approvals': waiting, 'Station verification': stationWaiting };
   return (
     <div className="layout">
       <aside>
