@@ -9,6 +9,7 @@ const ar = {
   'Not an admin': 'ليس مسؤولاً',
   Dashboard: 'لوحة المعلومات',
   Chats: 'المحادثات',
+  'All rights reserved by Damachill': 'جميع الحقوق محفوظة لدى Damachill',
   'No conversations yet. Messages between customers and riders appear here.': 'لا توجد محادثات بعد. تظهر هنا الرسائل بين العملاء والمناديب.',
   Bookings: 'الحجوزات',
   'Rider approvals': 'موافقات المناديب',

@@ -45,7 +45,7 @@ function Login() {
     <div className="login">
       <div className="water" />
       <form className="card" onSubmit={submit}>
-        <div className="brand"><span className="dez">Dezart</span><span className="wash">Wash</span></div>
+        <div className="brand"><span className="dez">Dezartcar</span><span className="wash"> Wash</span></div>
         <p className="muted">Admin panel</p>
         <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required />
         <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} required />
@@ -716,7 +716,7 @@ function Shell({ session }) {
   }, [role]);
   useEffect(() => {
     const n = pending + idx.unread + waiting;
-    document.title = n > 0 ? `(${n}) DezartWash Admin` : 'DezartWash Admin';
+    document.title = n > 0 ? `(${n}) Dezartcar Wash Admin` : 'Dezartcar Wash Admin';
   }, [pending, idx.unread, waiting]);
   useEffect(() => {
     if (role !== 'admin') return undefined;
@@ -746,7 +746,7 @@ function Shell({ session }) {
   return (
     <div className="layout">
       <aside>
-        <div className="brand"><span className="dez">Dezart</span><span className="wash">Wash</span></div>
+        <div className="brand"><span className="dez">Dezartcar</span><span className="wash"> Wash</span></div>
         {Object.keys(TABS).map((t) => (
           <button key={t} className={tab === t ? 'on' : ''} onClick={() => setTab(t)}>{t}{badges[t] > 0 ? <span className="count">{badges[t]}</span> : null}</button>
         ))}
@@ -758,6 +758,7 @@ function Shell({ session }) {
         {(bookingToast || toast) && <div className="toast">{bookingToast || toast}</div>}
         <div className="topband"><h1>{tab}</h1></div>
         <div className="content"><View idx={idx} /></div>
+        <footer className="foot">All rights reserved by Damachill</footer>
       </main>
     </div>
   );
