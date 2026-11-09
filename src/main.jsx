@@ -44,8 +44,14 @@ const STATUSES = ['pending', 'assigned', 'confirmed', 'on_the_way', 'arrived', '
 const STEP_LABEL = { pending: 'Waiting for a rider', assigned: 'Request sent to rider', confirmed: 'Confirmed by rider', on_the_way: 'Rider on the way', arrived: 'Rider arrived', in_progress: 'Service in progress', completed: 'Completed', cancelled: 'Cancelled' };
 const STEPS = ['assigned', 'confirmed', 'on_the_way', 'arrived', 'in_progress', 'completed'];
 
-function Progress({ status }) {
+const STATION_LABEL = { pending: 'Waiting for a station', confirmed: 'Approved by station', arrived: 'Customer arrived', in_progress: 'Service in progress', completed: 'Completed' };
+
+function Progress({ status, row }) {
   if (status === 'cancelled') return <span className="badge rejected">Cancelled</span>;
+  if (row?.fulfilment === 'station') {
+    const label = status === 'pending' && row.station_id ? 'Sent to station, waiting for approval' : (STATION_LABEL[status] || status);
+    return <b className={`stat-${status}`}>{label}</b>;
+  }
   const at = STEPS.indexOf(status);
   return (
     <div className="steps" title={STEP_LABEL[status]}>
@@ -380,8 +386,9 @@ function StationVisitAssign({ row, stations, reload }) {
   }
   return (
     <div>
-      <select value={sid} disabled={locked} onChange={(e) => setSid(e.target.value)}>
-        <option value="">{row.station_id ? 'Change station' : 'Select station'}</option>
+      {row.station_id && <div><small>Sent to <b>{stations.find((x) => x.id === row.station_id)?.name || 'station'}</b></small></div>}
+      <select style={{ minWidth: 190 }} value={sid} disabled={locked} onChange={(e) => setSid(e.target.value)}>
+        <option value="">{row.station_id ? 'Change station' : 'Select a service station'}</option>
         {visitStations.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
       </select>
       {!locked && sid && sid !== row.station_id && <button className="primary send" disabled={busy} onClick={send}>{busy ? 'Sending…' : 'Send to station'}</button>}
@@ -429,7 +436,7 @@ function BookingsTable({ rows, reload }) {
                 <td>{r.scheduled_at ? new Date(r.scheduled_at).toLocaleString() : '-'}</td>
                 <td>{r.customer_name || '-'}<br /><small>{r.phone}</small></td>
                 <td>{r.service_name}</td>
-                <td>{r.vehicle}<br /><small>{r.address}</small></td>
+                <td>{r.vehicle}{r.fulfilment !== 'station' && <><br /><small>{r.address}</small></>}</td>
                 <td>{money(r.total, r.currency)}</td>
                 <td>
                   <ProviderBadge kind={pv.kind} name={pv.name} />
@@ -454,7 +461,7 @@ function BookingsTable({ rows, reload }) {
                     </>
                   )}
                 </td>
-                <td><Progress status={r.status} /></td>
+                <td><Progress status={r.status} row={r} /></td>
                 <td className="actions">
                   <button className="link" onClick={() => setChat(r)}>Chat</button>
                   {!['completed', 'cancelled'].includes(r.status) && <button className="link danger" onClick={() => setStatus(r.id, 'cancelled')}>Cancel</button>}
