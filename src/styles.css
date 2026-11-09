@@ -81,3 +81,6 @@ button.send{display:block;margin-top:6px;padding:7px 14px;font-size:13px;border-
 .pbadge.green{color:#1f6b2a;background:#e8f5e9;border-color:#7fbf86}
 .pbadge.blue{color:#1456c9;background:#e8f0ff;border-color:#8db2f5}
 .pbadge.grey{color:#5b6b88;background:#f0f2f6;border-color:#c5ccd9}
+
+.msg.station { background:#e7f0ff; border:1px solid #b9d2ff; } .msg.customer { background:#fff; }
+.filters { display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap; }

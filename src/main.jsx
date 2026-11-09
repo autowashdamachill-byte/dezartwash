@@ -270,7 +270,7 @@ function Chat({ booking, onClose }) {
         <div className="msgs">
           {!msgs.length && <p className="muted">No messages yet.</p>}
           {msgs.map((m) => (
-            <div key={m.id} className={`msg ${m.sender_role}`}><small>{m.sender_role} · {new Date(m.created_at).toLocaleTimeString()}</small>{m.body}</div>
+            <div key={m.id} className={`msg ${m.sender_role}`}><small>{m.sender_role === 'station' ? (booking.stations?.name || 'station') : m.sender_role} · {new Date(m.created_at).toLocaleTimeString()}</small>{m.body}</div>
           ))}
           <div ref={end} />
         </div>
@@ -295,7 +295,7 @@ function useChatIndex(enabled) {
     const list = ms || [];
     const ids = [...new Set(list.map((m) => m.booking_id))];
     if (!ids.length) { setConvos([]); return; }
-    const { data: bs } = await sb.from('bookings').select('id,service_name,customer_name,status').in('id', ids);
+    const { data: bs } = await sb.from('bookings').select('id,service_name,customer_name,status,station_id,rider_id,fulfilment,stations(name),riders(name,station_id)').in('id', ids);
     const by = Object.fromEntries((bs || []).map((b) => [b.id, b]));
     setConvos(ids.map((id) => {
       const mine = list.filter((m) => m.booking_id === id);
@@ -318,20 +318,39 @@ function useChatIndex(enabled) {
   return { convos, unread: convos.reduce((a, c) => a + c.unread, 0), reload: load };
 }
 
+function chatWith(b) {
+  if (b?.fulfilment === 'station' || (b?.station_id && !b?.rider_id)) return { kind: 'station', name: b.stations?.name || 'Station' };
+  if (b?.riders?.station_id) return { kind: 'station_rider', name: b.riders?.name || 'Rider' };
+  if (b?.rider_id) return { kind: 'rider', name: b.riders?.name || 'Rider' };
+  return { kind: 'none', name: '' };
+}
+const WITH_LABEL = { station: 'Station', station_rider: 'Station rider', rider: 'Rider', none: 'No provider' };
+
 function Chats({ idx }) {
   const [open, setOpen] = useState(null);
-  const { convos } = idx;
+  const [who, setWho] = useState('all');
+  const all = idx.convos;
+  const convos = all.filter((c) => {
+    const k = chatWith(c.booking).kind;
+    return who === 'all' || (who === 'station' ? k === 'station' || k === 'station_rider' : k === 'rider');
+  });
   function openChat(c) { markSeen(c.id); idx.reload(); setOpen(c.booking); }
   function close() { if (open) markSeen(open.id); setOpen(null); idx.reload(); }
   return (
     <div className="card">
-      {!convos.length && <p className="muted">No conversations yet. Messages between customers and riders appear here.</p>}
+      <div className="filters">
+        {[['all', 'All chats'], ['rider', 'Individual riders'], ['station', 'Stations']].map(([k, l]) => (
+          <button key={k} className={who === k ? 'primary' : 'link'} onClick={() => setWho(k)}>{l}</button>
+        ))}
+      </div>
+      {!convos.length && <p className="muted">No conversations yet. Messages between customers, riders and stations appear here.</p>}
       <div className="convos">
         {convos.map((c) => (
           <button key={c.id} className={`convo ${c.unread ? 'new' : ''}`} onClick={() => openChat(c)}>
             <div className="who">
               <b>{c.booking.customer_name || 'Customer'}</b>
               <span className="muted"> · {c.booking.service_name}</span>
+              <span className={`pbadge ${({ station: 'blue', station_rider: 'green', rider: 'orange' })[chatWith(c.booking).kind] || ''}`}> {WITH_LABEL[chatWith(c.booking).kind]}{chatWith(c.booking).name ? `: ${chatWith(c.booking).name}` : ''}</span>
               <div className="preview"><small>{c.last?.sender_role}:</small> {c.last?.body}</div>
             </div>
             <div className="meta">
