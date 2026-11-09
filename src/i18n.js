@@ -60,6 +60,8 @@ const ar = {
   'All rights reserved by Damachill': 'جميع الحقوق محفوظة لدى Damachill',
   'No conversations yet. Messages between customers and riders appear here.': 'لا توجد محادثات بعد. تظهر هنا الرسائل بين العملاء والمناديب.',
   'No conversations yet. Messages between customers, riders and stations appear here.': 'لا توجد محادثات بعد. تظهر هنا الرسائل بين العملاء والمناديب والمحطات.',
+  'Send to station': 'إرسال إلى المحطة',
+  'Change station': 'تغيير المحطة',
   'Select station': 'اختر محطة',
   'Select time': 'اختر الوقت',
   'No slots this day': 'لا توجد مواعيد في هذا اليوم',

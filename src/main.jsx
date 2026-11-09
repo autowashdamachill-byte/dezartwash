@@ -73,7 +73,7 @@ function Login() {
     <div className="login">
       <div className="water" />
       <form className="card" onSubmit={submit}>
-        <div className="brand"><span className="dez">Dezartcar</span><span className="wash"> Wash</span></div>
+        <div className="brand"><span className="dez">Dezart</span><span className="wash">Wash</span></div>
         <p className="muted">Admin panel</p>
         <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required />
         <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} required />
@@ -366,41 +366,25 @@ function Chats({ idx }) {
 }
 
 /* ------------------------------------------------------------ Bookings */
-/* Admin allots a station and a free time slot to a station wash. */
+/* Station wash: choose a station and send it. The station approves and sets the time. */
 function StationVisitAssign({ row, stations, reload }) {
   const visitStations = stations.filter((x) => ['visit', 'both'].includes(x.mode));
-  const initDay = (row.scheduled_at ? new Date(row.scheduled_at) : new Date());
-  const [sid, setSid] = useState(row.station_id || '');
-  const [day, setDay] = useState(`${initDay.getFullYear()}-${String(initDay.getMonth() + 1).padStart(2, '0')}-${String(initDay.getDate()).padStart(2, '0')}`);
-  const [slots, setSlots] = useState([]);
-  const [slot, setSlot] = useState('');
+  const [sid, setSid] = useState('');
   const [busy, setBusy] = useState(false);
   const locked = ['in_progress', 'completed', 'cancelled'].includes(row.status);
-  useEffect(() => {
-    setSlot('');
-    if (!sid || !day) { setSlots([]); return; }
-    sb.rpc('station_slots', { p_station: sid, p_day: day }).then(({ data }) => setSlots(data || []));
-  }, [sid, day]);
-  async function allot() {
+  async function send() {
     setBusy(true);
-    const { error } = await sb.rpc('admin_assign_station_visit', { p_booking: row.id, p_station: sid, p_time: slot });
+    const { error } = await sb.rpc('admin_send_to_station', { p_booking: row.id, p_station: sid });
     setBusy(false);
-    if (error) alert(error.message); else reload();
+    if (error) alert(error.message); else { setSid(''); reload(); }
   }
-  const fmt = (t) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   return (
     <div>
-      <small>Customer visits a station. {row.station_id ? 'Allotted.' : 'Waiting for you to allot a station and time.'}</small>
       <select value={sid} disabled={locked} onChange={(e) => setSid(e.target.value)}>
-        <option value="">Select station</option>
+        <option value="">{row.station_id ? 'Change station' : 'Select station'}</option>
         {visitStations.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
       </select>
-      <input type="date" value={day} disabled={locked} onChange={(e) => setDay(e.target.value)} />
-      <select value={slot} disabled={locked || !sid} onChange={(e) => setSlot(e.target.value)}>
-        <option value="">{sid ? (slots.length ? 'Select time' : 'No slots this day') : 'Pick a station first'}</option>
-        {slots.map((x) => <option key={x.slot_start} value={x.slot_start} disabled={x.free <= 0}>{fmt(x.slot_start)} ({x.free} free)</option>)}
-      </select>
-      {!locked && sid && slot && <button className="primary send" disabled={busy} onClick={allot}>{busy ? 'Saving…' : row.station_id ? 'Change station / time' : 'Allot station'}</button>}
+      {!locked && sid && sid !== row.station_id && <button className="primary send" disabled={busy} onClick={send}>{busy ? 'Sending…' : 'Send to station'}</button>}
     </div>
   );
 }
@@ -963,7 +947,7 @@ function Shell({ session }) {
   }, [role]);
   useEffect(() => {
     const n = pending + idx.unread + waiting + stationWaiting;
-    document.title = n > 0 ? `(${n}) Dezartcar Wash Admin` : 'Dezartcar Wash Admin';
+    document.title = n > 0 ? `(${n}) DezartWash Admin` : 'DezartWash Admin';
   }, [pending, idx.unread, waiting, stationWaiting]);
   useEffect(() => {
     if (role !== 'admin') return undefined;
@@ -995,7 +979,7 @@ function Shell({ session }) {
   return (
     <div className="layout">
       <aside>
-        <div className="brand"><span className="dez">Dezartcar</span><span className="wash"> Wash</span></div>
+        <div className="brand"><span className="dez">Dezart</span><span className="wash">Wash</span></div>
         {Object.keys(TABS).map((t) => (
           <button key={t} className={tab === t ? 'on' : ''} onClick={() => setTab(t)}>{t}{badges[t] > 0 ? <span className="count">{badges[t]}</span> : null}</button>
         ))}
