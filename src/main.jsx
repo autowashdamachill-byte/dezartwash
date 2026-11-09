@@ -1045,7 +1045,7 @@ function Shell({ session }) {
         {(bookingToast || toast) && <div className="toast">{bookingToast || toast}</div>}
         <div className="topband"><h1>{tab}</h1></div>
         <div className="content"><View idx={idx} /></div>
-        <footer className="foot">All rights reserved by Damachill</footer>
+        <footer className="foot">© {new Date().getFullYear()} Damachill. All rights reserved.</footer>
       </main>
     </div>
   );

@@ -121,6 +121,7 @@ const ar = {
   Dashboard: 'لوحة المعلومات',
   Chats: 'المحادثات',
   'All rights reserved by Damachill': 'جميع الحقوق محفوظة لدى Damachill',
+  'Damachill. All rights reserved.': 'Damachill. جميع الحقوق محفوظة.',
   'No conversations yet. Messages between customers and riders appear here.': 'لا توجد محادثات بعد. تظهر هنا الرسائل بين العملاء والمناديب.',
   'No conversations yet. Messages between customers, riders and stations appear here.': 'لا توجد محادثات بعد. تظهر هنا الرسائل بين العملاء والمناديب والمحطات.',
   'Send to station': 'إرسال إلى المحطة',
