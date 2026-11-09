@@ -776,8 +776,9 @@ function Approvals() {
 }
 
 /* ---------------------------------------------------------- Editables */
-function Editable({ table, order, cols, blank, keyCol = 'id', title }) {
-  const { rows, error, load } = useTable(table, order);
+function Editable({ table, order, cols, blank, keyCol = 'id', title, show }) {
+  const { rows: allRows, error, load } = useTable(table, order);
+  const rows = show ? allRows.filter(show) : allRows;
   const [draft, setDraft] = useState(null);
   const [msg, setMsg] = useState('');
   async function save(e) {
@@ -846,20 +847,58 @@ function Editable({ table, order, cols, blank, keyCol = 'id', title }) {
   );
 }
 
-const Services = () => {
-  const cats = useTable('service_categories', { col: 'sort' }).rows;
+const slug = (t) => t.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+
+/* Clickable category tabs: pick one to see only its services. */
+function Services() {
+  const { rows: cats, load: reloadCats } = useTable('service_categories', { col: 'sort' });
+  const [sel, setSel] = useState('all');
+  const [form, setForm] = useState(null);
   const options = cats.length ? cats.map((c) => c.id) : ['wash', 'care', 'protection', 'styling'];
+  const current = cats.find((c) => c.id === sel);
+  async function saveCat(e) {
+    e.preventDefault();
+    const name = form.name.trim();
+    if (!name) return;
+    const row = { name, name_ar: form.name_ar.trim() || null };
+    const { error } = form.id
+      ? await sb.from('service_categories').update(row).eq('id', form.id)
+      : await sb.from('service_categories').insert({ ...row, id: slug(name) || `cat_${Date.now()}`, sort: (cats.at(-1)?.sort ?? 0) + 1 });
+    if (error) { alert(error.message); return; }
+    setForm(null); reloadCats();
+  }
+  async function delCat() {
+    if (!current || !confirm(`Delete category "${current.name}"? Its services stay but lose this tab.`)) return;
+    await sb.from('service_categories').delete().eq('id', current.id);
+    setSel('all'); reloadCats();
+  }
   return (
     <>
-      <Editable title="Categories" table="service_categories" order={{ col: 'sort' }}
-        blank={{ id: '', name: '', name_ar: '', sort: 100, active: true }}
-        cols={[
-          { key: 'name', label: 'Name' }, { key: 'name_ar', label: 'Arabic name' }, { key: 'id', label: 'ID (no spaces)' },
-          { key: 'active', label: 'Active', type: 'checkbox' },
-          { key: 'sort', label: 'Order', type: 'number' },
-        ]} keyCol="id" />
+      <div className="bar wrap">
+        <button className={`pill ${sel === 'all' ? 'on' : ''}`} onClick={() => setSel('all')}>All</button>
+        {cats.map((c) => (
+          <button key={c.id} className={`pill ${sel === c.id ? 'on' : ''}`} onClick={() => setSel(c.id)}>{c.name}</button>
+        ))}
+        <button className="pill" onClick={() => setForm({ id: '', name: '', name_ar: '' })}>+ Add category</button>
+      </div>
+      {current && !form && (
+        <div className="bar">
+          <small className="muted">Category: <b>{current.name}</b></small>
+          <button className="link" onClick={() => setForm({ id: current.id, name: current.name, name_ar: current.name_ar || '' })}>Rename</button>
+          <button className="link danger" onClick={delCat}>Delete category</button>
+        </div>
+      )}
+      {form && (
+        <form className="card" onSubmit={saveCat} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12 }}>
+          <input autoFocus placeholder="Category name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} style={{ flex: 1, minWidth: 180 }} />
+          <input placeholder="Arabic name (optional)" value={form.name_ar} onChange={(e) => setForm({ ...form, name_ar: e.target.value })} style={{ flex: 1, minWidth: 180 }} />
+          <button className="primary">{form.id ? 'Save' : 'Add'}</button>
+          <button type="button" className="link" onClick={() => setForm(null)}>Cancel</button>
+        </form>
+      )}
       <Editable title="Services" table="services" order={{ col: 'sort' }}
-        blank={{ id: '', name: '', category: options[0], price: 0, duration_minutes: 0, premium: false, bike: false, active: true, sort: 200 }}
+        show={(r) => sel === 'all' || r.category === sel}
+        blank={{ id: '', name: '', category: sel === 'all' ? options[0] : sel, price: 0, duration_minutes: 0, premium: false, bike: false, active: true, sort: 200 }}
         cols={[
           { key: 'name', label: 'Name' }, { key: 'id', label: 'ID' },
           { key: 'category', label: 'Category', options },
@@ -872,7 +911,7 @@ const Services = () => {
         ]} keyCol="id" />
     </>
   );
-};
+}
 const Plans = () => (
   <Editable title="Monthly plans" table="monthly_plans" order={{ col: 'group_name' }}
     blank={{ group_name: 'Standard Wash', washes: 6, home_price: 0, station_price: 0, active: true }}
