@@ -114,6 +114,7 @@ const ar = {
   'Revenue': 'الإيرادات',
   'Admin panel': 'لوحة الإدارة',
   'Sign in': 'تسجيل الدخول',
+  'Continue with Apple': 'المتابعة باستخدام Apple',
   'Sign out': 'تسجيل الخروج',
   Email: 'البريد الإلكتروني',
   Password: 'كلمة المرور',

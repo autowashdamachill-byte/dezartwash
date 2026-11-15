@@ -84,3 +84,5 @@ button.send{display:block;margin-top:6px;padding:7px 14px;font-size:13px;border-
 
 .msg.station { background:#e7f0ff; border:1px solid #b9d2ff; } .msg.customer { background:#fff; }
 .filters { display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap; }
+
+.apple { background:#000; border:1px solid #000; border-radius:999px; padding:11px 20px; font-weight:700; color:#fff; cursor:pointer; }

@@ -86,6 +86,7 @@ function Login() {
         <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} required />
         {msg && <p className="err">{msg}</p>}
         <button className="primary">Sign in</button>
+        <button type="button" className="apple" onClick={() => sb.auth.signInWithOAuth({ provider: 'apple', options: { redirectTo: window.location.origin } })}>Continue with Apple</button>
       </form>
     </div>
   );
