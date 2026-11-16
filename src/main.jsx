@@ -972,7 +972,63 @@ function Customers() {
   );
 }
 
-const TABS = { Dashboard, Bookings, Chats, 'Rider approvals': Approvals, Riders, 'Station verification': Stations, Services, 'Add-ons': AddOns, Settings, 'Monthly plans': Plans, Coupons, Customers };
+function Feedback() {
+  const [rows, setRows] = useState([]);
+  const [urls, setUrls] = useState({});
+  const [error, setError] = useState('');
+  const stations = useTable('stations', { col: 'name' }).rows;
+  const load = useCallback(async () => {
+    const { data, error: e } = await sb.from('booking_feedback')
+      .select('id,rating,comment,media,created_at,station_id,bookings(service_name,customer_name,phone,fulfilment)')
+      .order('created_at', { ascending: false });
+    if (e) { setError(e.message); return; }
+    setError('');
+    setRows(data);
+    const paths = data.flatMap((r) => r.media || []);
+    if (paths.length) {
+      const { data: signed } = await sb.storage.from('feedback-media').createSignedUrls(paths, 3600);
+      const m = {};
+      (signed || []).forEach((x) => { if (x.signedUrl) m[x.path] = x.signedUrl; });
+      setUrls(m);
+    }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+  async function remove(id) {
+    if (!window.confirm('Delete this feedback?')) return;
+    const { error: e } = await sb.from('booking_feedback').delete().eq('id', id);
+    if (e) setError(e.message); else load();
+  }
+  const stationName = (id) => (stations.find((x) => x.id === id) || {}).name || 'Home service';
+  const isVideo = (p) => /\.(mp4|mov)$/i.test(p);
+  return (
+    <>
+      {error && <p className="err">{error}</p>}
+      <div className="card table-wrap">
+        <table>
+          <thead><tr><th>Date</th><th>Customer</th><th>Service</th><th>Done by</th><th>Rating</th><th>Comment</th><th>Photos / video</th><th /></tr></thead>
+          <tbody>{rows.map((r) => (
+            <tr key={r.id}>
+              <td>{new Date(r.created_at).toLocaleDateString()}</td>
+              <td>{(r.bookings && r.bookings.customer_name) || '-'}<br /><small>{r.bookings && r.bookings.phone}</small></td>
+              <td>{(r.bookings && r.bookings.service_name) || '-'}</td>
+              <td>{stationName(r.station_id)}</td>
+              <td style={{ color: '#f5a623', whiteSpace: 'nowrap' }}>{'★'.repeat(r.rating)}{'☆'.repeat(5 - r.rating)}</td>
+              <td style={{ maxWidth: 260 }}>{r.comment || '-'}</td>
+              <td>{(r.media || []).map((p) => (urls[p] ? (
+                isVideo(p)
+                  ? <a key={p} href={urls[p]} target="_blank" rel="noreferrer" style={{ marginRight: 6 }}>Video</a>
+                  : <a key={p} href={urls[p]} target="_blank" rel="noreferrer"><img src={urls[p]} alt="work" style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 6, marginRight: 6 }} /></a>
+              ) : null))}</td>
+              <td><button type="button" className="link" onClick={() => remove(r.id)}>Delete</button></td>
+            </tr>
+          ))}</tbody>
+        </table>
+        {!rows.length && !error && <p className="muted" style={{ padding: 16 }}>No feedback yet.</p>}
+      </div>
+    </>
+  );
+}
+const TABS = { Dashboard, Bookings, Chats, 'Rider approvals': Approvals, Riders, 'Station verification': Stations, Services, 'Add-ons': AddOns, Settings, 'Monthly plans': Plans, Coupons, Feedback, Customers };
 
 function useChatAlerts(me, enabled) {
   const [toast, setToast] = useState('');

@@ -151,6 +151,7 @@ const ar = {
   Coupons: 'القسائم',
   'Add-ons': 'الإضافات',
   Settings: 'الإعدادات',
+  Feedback: 'التقييمات',
   'Code (no spaces)': 'الرمز (بدون مسافات)',
   'Price (incl. VAT)': 'السعر (شامل الضريبة)',
   Customers: 'العملاء',
