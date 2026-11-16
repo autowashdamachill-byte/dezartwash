@@ -1118,7 +1118,7 @@ function Shell({ session }) {
         {(bookingToast || toast) && <div className="toast">{bookingToast || toast}</div>}
         <div className="topband"><h1>{tab}</h1></div>
         <div className="content"><View idx={idx} /></div>
-        <footer className="foot">© {new Date().getFullYear()} Damachill. All rights reserved.</footer>
+        <footer className="foot">© {new Date().getFullYear()} Damac Hills Company. All rights reserved.<br /><a href="/privacy.html" target="_blank" rel="noreferrer">Privacy Policy</a> · <a href="/delete-account.html" target="_blank" rel="noreferrer">Delete account</a> · <a href="mailto:sales@damachills.sa">sales@damachills.sa</a></footer>
       </main>
     </div>
   );
