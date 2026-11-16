@@ -442,7 +442,7 @@ function BookingsTable({ rows, reload }) {
                 <td>{r.customer_name || '-'}<br /><small>{r.phone}</small></td>
                 <td>{r.service_name}</td>
                 <td>{r.vehicle}{r.fulfilment !== 'station' && <><br /><small>{r.address}</small></>}</td>
-                <td>{money(r.total, r.currency)}</td>
+                <td>{money(r.total, r.currency)}{r.payment && <><br /><small style={String(r.payment).startsWith('UNDERPAID') ? { color: '#c62828', fontWeight: 700 } : undefined}>{r.payment}</small></>}</td>
                 <td>
                   <ProviderBadge kind={pv.kind} name={pv.name} />
                   {r.fulfilment === 'station' ? (
@@ -930,6 +930,14 @@ const Plans = () => (
       { key: 'active', label: 'Active', type: 'checkbox' },
     ]} />
 );
+const AddOns = () => (
+  <Editable title="Add-ons" table="add_ons" order={{ col: 'name' }} keyCol="id"
+    blank={{ id: '', name: '', price: 10, active: true }}
+    cols={[
+      { key: 'id', label: 'Code (no spaces)' }, { key: 'name', label: 'Name' },
+      { key: 'price', label: 'Price (incl. VAT)', type: 'number', money: true }, { key: 'active', label: 'Active', type: 'checkbox' },
+    ]} />
+);
 const Coupons = () => (
   <Editable title="Coupons" table="coupons" order={{ col: 'code' }} keyCol="code"
     blank={{ code: '', percent: 10, description: '', active: true }}
@@ -956,7 +964,7 @@ function Customers() {
   );
 }
 
-const TABS = { Dashboard, Bookings, Chats, 'Rider approvals': Approvals, Riders, 'Station verification': Stations, Services, 'Monthly plans': Plans, Coupons, Customers };
+const TABS = { Dashboard, Bookings, Chats, 'Rider approvals': Approvals, Riders, 'Station verification': Stations, Services, 'Add-ons': AddOns, 'Monthly plans': Plans, Coupons, Customers };
 
 function useChatAlerts(me, enabled) {
   const [toast, setToast] = useState('');
