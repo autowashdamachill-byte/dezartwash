@@ -938,14 +938,6 @@ const AddOns = () => (
       { key: 'price', label: 'Price (incl. VAT)', type: 'number', money: true }, { key: 'active', label: 'Active', type: 'checkbox' },
     ]} />
 );
-const Settings = () => (
-  <Editable title="Settings" table="app_settings" order={{ col: 'key' }} keyCol="key"
-    blank={{ key: 'home_visit_fee', value: 35 }}
-    cols={[
-      { key: 'key', label: 'Setting (home_visit_fee = fee for coming to the customer, VAT included)' },
-      { key: 'value', label: 'Value', type: 'number' },
-    ]} />
-);
 const Coupons = () => (
   <Editable title="Coupons" table="coupons" order={{ col: 'code' }} keyCol="code"
     blank={{ code: '', percent: 10, description: '', active: true }}
@@ -1028,7 +1020,7 @@ function Feedback() {
     </>
   );
 }
-const TABS = { Dashboard, Bookings, Chats, 'Rider approvals': Approvals, Riders, 'Station verification': Stations, Services, 'Add-ons': AddOns, Settings, 'Monthly plans': Plans, Coupons, Feedback, Customers };
+const TABS = { Dashboard, Bookings, Chats, 'Rider approvals': Approvals, Riders, 'Station verification': Stations, Services, 'Add-ons': AddOns, 'Monthly plans': Plans, Coupons, Feedback, Customers };
 
 function useChatAlerts(me, enabled) {
   const [toast, setToast] = useState('');
